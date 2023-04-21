@@ -30,6 +30,9 @@ fn main(mut app:App) {
 }
 ```
 
+It should be understood that Glapp provides a kind on "least common denominator" when it comes to the functionality
+of these libraries. If you want more fine grained control, use respective library directly.
+
 ## Libraries
 Glapp can work with the following underlying libraries. Enable them as features:
 
