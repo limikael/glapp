@@ -1,0 +1,25 @@
+[package]
+name = "glapp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glapp-macros = {version="0.1.0", path="./glapp-macros"}
+gl = "0.14.0"
+
+# SDL deps
+sdl2 = {version="0.35.2", optional=true}
+
+# Glutin deps
+glutin = {version="0.30.7", optional=true}
+winit = {version="0.28.3", features=["android-native-activity"], optional=true}
+glutin-winit = {version="0.3.0", optional=true}
+raw-window-handle = {version="0.5.2", optional=true}
+
+[features]
+#default=["sdl"]
+sdl=["dep:sdl2", "glapp-macros/sdl"]
+glutin=["dep:glutin", "dep:winit", "dep:glutin-winit", "dep:raw-window-handle", "glapp-macros/glutin"]
+#miniquad=["dep:miniquad", "appy-macros/miniquad"]
