@@ -36,4 +36,4 @@ Glapp can work with the following underlying libraries. Enable them as features:
 - **SDL** - Simple DirectMedia Layer is a cross-platform development library designed to provide low level access to audio, 
   keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D. SDL officially supports Windows, macOS, Linux, iOS, and Android.
   SDL has been around since 1998 and is thoroughly battle tested. 
-- *Glutin*
+- **Glutin** - Glutin is a pure Rust library with deep roots in the community.
