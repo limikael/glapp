@@ -1,5 +1,5 @@
 # glapp
-OpenGL meta window and context creation
+OpenGL meta window and context creation.
 
 The window and graphics context creation pipeline in the Rust ecosystem is experiencing a kind of cambrian explosion at the moment, 
 which is why it is good to be flexible possible when it comes to working with different underlying libraries and toolchains.
@@ -16,7 +16,7 @@ use glapp::*;
 #[glapp_main]
 fn main(mut app:App) {
     app.title("Testing Glapp");
-	  app.run(|window,event|{
+    app.run(|window,event|{
         match event {
             AppEvent::Open=>{
                 // The OpenGL context is created and made current.
