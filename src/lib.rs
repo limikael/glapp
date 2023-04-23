@@ -1,3 +1,30 @@
+//! # glapp - OpenGL meta window and context creation
+//!
+//! Glapp is a library for OpenGL window and context creation.
+//!
+//! Example:
+//!
+//! ```rust
+//! use glapp::*;
+//! 
+//! #[glapp_main]
+//! fn main(mut app:App) {
+//!     app.title("Testing Glapp");
+//!     app.run(|window,event|{
+//!         match event {
+//!             AppEvent::Open=>{
+//!                 // The OpenGL context is created and made current.
+//!             },
+//!             AppEvent::Render=>{
+//!                 // This is where we render our scene.
+//!             },
+//!             // ... see docs for more events, e.g. input and such ...
+//!         }
+//!     });
+//! }
+//! ```
+//!
+
 pub use glapp_macros::*;
 
 #[derive(Debug)]
