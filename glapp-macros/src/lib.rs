@@ -19,7 +19,7 @@ pub fn glapp_main(attr: TokenStream, input: TokenStream) -> TokenStream {
 	ast.sig.ident=format_ident!("_glapp_main_{}",ast.sig.ident.clone().to_string());
 	let name=ast.sig.ident.clone();
 
-	if cfg!(all(not(feature="glutin"),not(feature="sdl"),not(feature="miniquad"))) {
+	if cfg!(all(not(feature="glutin"),not(feature="sdl")/*,not(feature="miniquad")*/)) {
 		panic!("Welcome to Glapp! Please enable exactly one of the features \"sdl\" or \"glutin\" to select rendering backend. Enjoy!");
 	}
 
@@ -64,10 +64,8 @@ pub fn glapp_main(attr: TokenStream, input: TokenStream) -> TokenStream {
 	/*if cfg!(feature="miniquad") {
 		out.extend(quote!{
 			pub fn main() {
-				let w=::appy::sys::app_window_miniquad::MiniquadAppWindowBuilder::new()
-					.build();
-
-				::appy::core::Appy::new(#name).run(w);
+				let b=#parent::glapp::app_window_miniquad::AppWindowBuilderMiniquad::new();
+				#name(#parent::glapp::App::new(b));
 			}
 		});
 	}*/

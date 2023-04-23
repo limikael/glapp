@@ -19,4 +19,4 @@ syn = { version = "1", features = ["full"] }
 [features]
 sdl=[]
 glutin=[]
-miniquad=[]
+#miniquad=[]
