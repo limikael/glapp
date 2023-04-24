@@ -26,6 +26,10 @@
 //!
 
 pub use glapp_macros::*;
+pub use gl;
+
+mod android_log_thread;
+pub use android_log_thread::*;
 
 #[derive(Debug)]
 pub enum MouseButton {

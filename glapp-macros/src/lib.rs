@@ -55,6 +55,7 @@ pub fn glapp_main(attr: TokenStream, input: TokenStream) -> TokenStream {
 			#[no_mangle]
 			#[allow(non_snake_case)]
 			pub fn SDL_main() {
+				#parent::glapp::spawn_android_log_thread();
 				let b=#parent::glapp::app_window_sdl::AppWindowBuilderSdl::new();
 				#name(#parent::glapp::App::new(b));
 			}
