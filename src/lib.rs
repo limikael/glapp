@@ -28,7 +28,10 @@
 pub use glapp_macros::*;
 pub use gl;
 
+#[cfg(target_os="android")]
 mod android_log_thread;
+
+#[cfg(target_os="android")]
 pub use android_log_thread::*;
 
 #[derive(Debug)]
