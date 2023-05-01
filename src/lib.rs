@@ -51,22 +51,48 @@ pub enum MouseKind {
 pub enum AppEvent {
     Show,
     Render,
-    Resize{width:u32, height:u32},
-    MouseDown{x:i32, y:i32, kind:MouseKind, button:MouseButton},
-    MouseUp{x:i32, y:i32, kind:MouseKind, button:MouseButton},
-    MouseMove{x:i32, y:i32, kind:MouseKind},
+    Resize{width:f32, height:f32},
+    MouseDown{x:f32, y:f32, kind:MouseKind, button:MouseButton},
+    MouseUp{x:f32, y:f32, kind:MouseKind, button:MouseButton},
+    MouseMove{x:f32, y:f32, kind:MouseKind},
+}
+
+#[derive(Debug,Clone)]
+pub enum AppUnits {
+    DeviceIndependent,
+    HardwarePixels
+}
+
+impl AppUnits {
+    #[allow(unused_parens)]
+    pub fn hw_to_units(&self, pixel_ratio:f32, value:f32)->f32 {
+        match self {
+            AppUnits::DeviceIndependent=>(value/pixel_ratio),
+            AppUnits::HardwarePixels=>value
+        }
+    }
+
+    #[allow(unused_parens)]
+    pub fn units_to_hw(&self, pixel_ratio:f32, value:f32)->f32 {
+        match self {
+            AppUnits::DeviceIndependent=>(value*pixel_ratio),
+            AppUnits::HardwarePixels=>value
+        }
+    }
 }
 
 pub trait AppWindow {
     fn run(self: Box<Self>, handler:Box<dyn FnMut(&mut dyn AppWindow,AppEvent)>);
     fn post_redisplay(&mut self);
-    fn size(&self)->(i32,i32);
+    fn size(&self)->(f32,f32);
     fn pixel_ratio(&self)->f32;
 }
 
 pub trait AppWindowBuilder {
     fn build(self: Box<Self>)->Box<dyn AppWindow>;
     fn title(&mut self, title:String);
+    fn size(&mut self, w:f32, h:f32);
+    fn units(&mut self, units:AppUnits);
 }
 
 pub struct App {
@@ -80,8 +106,16 @@ impl App {
         }
     }
 
+    pub fn units(&mut self, units:AppUnits) {
+        self.builder.units(units);
+    }
+
     pub fn title(&mut self, title: &str) {
         self.builder.title(String::from(title));
+    }
+
+    pub fn size(&mut self, w:f32, h:f32) {
+        self.builder.size(w,h);
     }
 
     pub fn run<T>(self:Self, handler: T)

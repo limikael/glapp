@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use winit::event::{Event, WindowEvent};
 use winit::window::WindowBuilder;
-use winit::event_loop::EventLoopBuilder;
+use winit::event_loop::{EventLoopBuilder};
 
 use raw_window_handle::HasRawWindowHandle;
 
@@ -23,18 +23,23 @@ use winit::platform::android::EventLoopBuilderExtAndroid;
 #[cfg(target_os="android")]
 pub use winit::platform::android::activity::AndroidApp;
 
-use crate::{AppWindow, AppEvent, MouseKind, MouseButton};
+use crate::{AppWindow, AppEvent, MouseKind, MouseButton, AppUnits};
 
 pub struct AppWindowBuilderGlutin {
     #[cfg(target_os="android")]
     android_app: Option<winit::platform::android::activity::AndroidApp>,
 
     title:String,
+    size: (f32,f32),
+    units: AppUnits,
 }
 
 impl AppWindowBuilder for AppWindowBuilderGlutin {
     fn build(self:Box<Self>)->Box<dyn AppWindow> {
-        let mut event_loop_builder=EventLoopBuilder::new();
+        Box::new(AppWindowGlutin::new(&self)) //.title.clone()))
+
+
+        /*let mut event_loop_builder=EventLoopBuilder::new();
 
         #[cfg(target_os="android")] {
             event_loop_builder.with_android_app(self.android_app.take().unwrap());
@@ -43,18 +48,28 @@ impl AppWindowBuilder for AppWindowBuilderGlutin {
         Box::new(GlutinAppWindow::new(
             event_loop_builder.build(),
             self.title.clone()
-        ))
+        ))*/
     }
 
     fn title(&mut self, title:String) {
         self.title=title;
+    }
+
+    fn size(&mut self, w:f32, h:f32) {
+        self.size=(w,h);
+    }
+
+    fn units(&mut self, units: AppUnits) {
+        self.units=units;
     }
 }
 
 impl AppWindowBuilderGlutin {
     pub fn new()->Box<Self> {
         Box::new(Self {
-            title: "Unknown".to_string()
+            title: "Unknown".to_string(),
+            size: (800.,600.),
+            units: AppUnits::HardwarePixels
         })
     }
 
@@ -64,32 +79,45 @@ impl AppWindowBuilderGlutin {
         self.android_app=Some(android_app);
         self
     }
+
+    pub fn build_event_loop(&self)->winit::event_loop::EventLoop<()> {
+        let mut event_loop_builder=EventLoopBuilder::new();
+
+        #[cfg(target_os="android")] {
+            event_loop_builder.with_android_app(self.android_app.take().unwrap());
+        }
+
+        event_loop_builder.build()
+    }
 }
 
-pub struct GlutinAppWindow {
+pub struct AppWindowGlutin {
     gl_config: glutin::config::Config,
     event_loop: Option<winit::event_loop::EventLoop<()>>,
     window: Option<winit::window::Window>,
     not_current_gl_context: Option<glutin::context::NotCurrentContext>,
     gl_context: Option<glutin::context::PossiblyCurrentContext>,
     gl_surface: Option<glutin::surface::Surface<glutin::surface::WindowSurface>>,
-    width: u32,
-    height: u32,
+    hw_size: (f32,f32),
     mouse_position: winit::dpi::PhysicalPosition<f64>,
-    pixel_ratio: f32
+    pixel_ratio: f32,
+    units: AppUnits,
 }
 
-impl AppWindow for GlutinAppWindow {
-    fn size(&self)->(i32,i32) {
-        if self.width==0 || self.height==0 {
+impl AppWindow for AppWindowGlutin {
+    fn size(&self)->(f32,f32) {
+        if self.hw_size.0<=0. {
             panic!("We have no window at this point");
         }
 
-        (self.width as i32,self.height as i32)
+        (
+            self.units.hw_to_units(self.pixel_ratio,self.hw_size.0),
+            self.units.hw_to_units(self.pixel_ratio,self.hw_size.1)
+        )
     }
 
     fn pixel_ratio(&self)->f32 {
-        if self.pixel_ratio<=0.0 {
+        if self.pixel_ratio<=0. {
             panic!("We have no window at this point");
         }
 
@@ -106,8 +134,10 @@ impl AppWindow for GlutinAppWindow {
     }
 }
 
-impl GlutinAppWindow {
-    pub fn new(event_loop:winit::event_loop::EventLoop<()>, title:String)->Self {
+impl AppWindowGlutin {
+    pub fn new(builder:&AppWindowBuilderGlutin)->Self {
+        let event_loop=builder.build_event_loop();
+
         let window_builder=
             if cfg!(target_os = "android") {None}
             else {Some(WindowBuilder::new())};
@@ -133,7 +163,7 @@ impl GlutinAppWindow {
             .unwrap();
 
         if window.is_some() {
-            window.as_ref().unwrap().set_title(&*title);
+            window.as_ref().unwrap().set_title(&builder.title);
         }
 
         let pixel_ratio=if window.is_some() {
@@ -188,17 +218,17 @@ impl GlutinAppWindow {
 
         //let inner_size=window.as_ref().unwrap().inner_size();
 
-        GlutinAppWindow {
+        AppWindowGlutin {
             gl_config,
             event_loop: Some(event_loop),
             window,
             not_current_gl_context,
             gl_context: None,
             gl_surface: None,
-            width: 0, //inner_size.width,
-            height: 0, //inner_size.height
+            hw_size: (-1.,-1.),
             mouse_position: winit::dpi::PhysicalPosition::<f64>{x:0.0, y:0.0},
-            pixel_ratio: pixel_ratio
+            pixel_ratio: pixel_ratio,
+            units: builder.units.clone()
         }
     }
 
@@ -217,8 +247,10 @@ impl GlutinAppWindow {
                     }
 
                     let inner_size=self.window.as_ref().unwrap().inner_size();
-                    self.width=inner_size.width;
-                    self.height=inner_size.height;
+                    self.hw_size=(
+                        inner_size.width as f32,
+                        inner_size.height as f32
+                    );
                     self.pixel_ratio=self.window.as_ref().unwrap().scale_factor() as f32;
 
                     let attrs = self.window.as_ref().unwrap().build_surface_attributes(<_>::default());
@@ -279,13 +311,17 @@ impl GlutinAppWindow {
                             gl::Viewport(0, 0, size.width as i32, size.height as i32);
                         }
 
-                        self.width=size.width;
-                        self.height=size.height;
-                        handler(&mut self,AppEvent::Resize{
-                            width:size.width,
-                            height:size.height
-                        });
+                        self.hw_size=(
+                            size.width as f32,
+                            size.height as f32
+                        );
 
+                        let e=AppEvent::Resize{
+                            width: self.units.hw_to_units(self.pixel_ratio,self.hw_size.0),
+                            height: self.units.hw_to_units(self.pixel_ratio,self.hw_size.1)
+                        };
+
+                        handler(&mut self,e);
                         self.window.as_ref().unwrap().request_redraw();
                     },
                     WindowEvent::ScaleFactorChanged{new_inner_size,..}=>{
@@ -301,13 +337,17 @@ impl GlutinAppWindow {
                         }
 
                         self.pixel_ratio=self.window.as_ref().unwrap().scale_factor() as f32;
-                        self.width=size.width;
-                        self.height=size.height;
-                        handler(&mut self,AppEvent::Resize{
-                            width:size.width,
-                            height:size.height
-                        });
+                        self.hw_size=(
+                            size.width as f32,
+                            size.height as f32
+                        );
 
+                        let e=AppEvent::Resize{
+                            width: self.units.hw_to_units(self.pixel_ratio,self.hw_size.0),
+                            height: self.units.hw_to_units(self.pixel_ratio,self.hw_size.1)
+                        };
+
+                        handler(&mut self,e);
                         self.window.as_ref().unwrap().request_redraw();
                     },
                     WindowEvent::CloseRequested => {
@@ -315,11 +355,13 @@ impl GlutinAppWindow {
                     },
                     WindowEvent::CursorMoved{position,..}=>{
                         self.mouse_position=position;
-                        handler(&mut self,AppEvent::MouseMove{
-                            x:position.x as i32,
-                            y:position.y as i32,
+                        let e=AppEvent::MouseMove{
+                            x:self.units.hw_to_units(self.pixel_ratio,position.x as f32),
+                            y:self.units.hw_to_units(self.pixel_ratio,position.y as f32),
                             kind:MouseKind::Mouse
-                        });
+                        };
+
+                        handler(&mut self,e);
                     },
                     WindowEvent::MouseInput{state,button,..}=>{
                         let event_button=match button {
@@ -331,16 +373,16 @@ impl GlutinAppWindow {
                         let event=match state {
                             winit::event::ElementState::Pressed=>{
                                 AppEvent::MouseDown{
-                                    x: self.mouse_position.x as i32,
-                                    y: self.mouse_position.y as i32,
+                                    x: self.units.hw_to_units(self.pixel_ratio,self.mouse_position.x as f32),
+                                    y: self.units.hw_to_units(self.pixel_ratio,self.mouse_position.y as f32),
                                     kind: MouseKind::Mouse,
                                     button: event_button
                                 }
                             },
                             winit::event::ElementState::Released=>{
                                 AppEvent::MouseUp{
-                                    x: self.mouse_position.x as i32,
-                                    y: self.mouse_position.y as i32,
+                                    x: self.units.hw_to_units(self.pixel_ratio,self.mouse_position.x as f32),
+                                    y: self.units.hw_to_units(self.pixel_ratio,self.mouse_position.y as f32),
                                     kind: MouseKind::Mouse,
                                     button: event_button
                                 }
@@ -353,24 +395,24 @@ impl GlutinAppWindow {
                         let event=match phase {
                             winit::event::TouchPhase::Started=>{
                                 AppEvent::MouseDown{
-                                    x: location.x as i32,
-                                    y: location.y as i32,
+                                    x: self.units.hw_to_units(self.pixel_ratio,location.x as f32),
+                                    y: self.units.hw_to_units(self.pixel_ratio,location.y as f32),
                                     kind: MouseKind::Touch,
                                     button: MouseButton::Unknown
                                 }
                             },
                             winit::event::TouchPhase::Moved=>{
                                 AppEvent::MouseMove{
-                                    x: location.x as i32,
-                                    y: location.y as i32,
+                                    x: self.units.hw_to_units(self.pixel_ratio,location.x as f32),
+                                    y: self.units.hw_to_units(self.pixel_ratio,location.y as f32),
                                     kind: MouseKind::Touch,
                                 }
                             },
                             winit::event::TouchPhase::Ended |
                             winit::event::TouchPhase::Cancelled=>{
                                 AppEvent::MouseUp{
-                                    x: location.x as i32,
-                                    y: location.y as i32,
+                                    x: self.units.hw_to_units(self.pixel_ratio,location.x as f32),
+                                    y: self.units.hw_to_units(self.pixel_ratio,location.y as f32),
                                     kind: MouseKind::Touch,
                                     button: MouseButton::Unknown
                                 }

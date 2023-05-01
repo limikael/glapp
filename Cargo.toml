@@ -1,6 +1,6 @@
 [package]
 name = "glapp"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description="GL context creation wrapper"
 documentation = "https://docs.rs/glapp"
@@ -11,7 +11,7 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glapp-macros = {version="0.1.1", path="./glapp-macros"}
+glapp-macros = {version="0.1.2", path="./glapp-macros"}
 gl = "0.14.0"
 
 # SDL deps

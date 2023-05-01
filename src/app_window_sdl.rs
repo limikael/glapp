@@ -1,5 +1,5 @@
 use sdl2::event::{Event, WindowEvent};
-use crate::{MouseKind, MouseButton, AppWindow, AppEvent, AppWindowBuilder};
+use crate::{MouseKind, MouseButton, AppWindow, AppEvent, AppWindowBuilder, AppUnits};
 
 const SDL_TOUCH_MOUSEID: u32 = u32::MAX;
 
@@ -17,23 +17,35 @@ fn decode_mouse(mouse_id:u32, mouse_btn:sdl2::mouse::MouseButton)
 }
 
 pub struct AppWindowBuilderSdl {
-	title: String
+	title: String,
+	size: (f32,f32),
+	units: AppUnits,
 }
 
 impl AppWindowBuilder for AppWindowBuilderSdl {
     fn build(self:Box<Self>)->Box<dyn AppWindow> {
-    	Box::new(AppWindowSdl::new(self.title.clone()))
+    	Box::new(AppWindowSdl::new(&self)) //.title.clone()))
     }
 
     fn title(&mut self, title:String) {
         self.title=title;
+    }
+
+    fn size(&mut self, w:f32, h:f32) {
+    	self.size=(w,h);
+    }
+
+    fn units(&mut self, units: AppUnits) {
+    	self.units=units;
     }
 }
 
 impl AppWindowBuilderSdl {
 	pub fn new()->Box<Self> {
 		Box::new(Self {
-			title: "Unknown".to_string()
+			title: "Unknown".to_string(),
+			size: (800.,600.),
+			units: AppUnits::HardwarePixels
 		})
 	}
 }
@@ -43,16 +55,19 @@ pub struct AppWindowSdl {
 	window: sdl2::video::Window,
 	_gl_context: sdl2::video::GLContext,
 	_video_subsystem: sdl2::VideoSubsystem,
-	width: u32,
-	height: u32,
+	hw_size: (f32,f32),
 	expose_requested: bool,
 	quit_requested: bool,
 	pixel_ratio: f32,
+	units: AppUnits,
 }
 
 impl AppWindow for AppWindowSdl {
-	fn size(&self)->(i32,i32) {
-		(self.width as i32,self.height as i32)
+	fn size(&self)->(f32,f32) {
+		(
+			self.units.hw_to_units(self.pixel_ratio,self.hw_size.0),
+			self.units.hw_to_units(self.pixel_ratio,self.hw_size.1)
+		)
 	}
 
 	fn pixel_ratio(&self)->f32 {
@@ -69,7 +84,7 @@ impl AppWindow for AppWindowSdl {
 }
 
 impl AppWindowSdl {
-	pub fn new(title:String)->Self {
+	pub fn new(builder:&AppWindowBuilderSdl)->Self {
 		let sdl=sdl2::init().unwrap();
 		let video_subsystem=sdl.video().unwrap();
 
@@ -79,10 +94,16 @@ impl AppWindowSdl {
 			pixel_ratio=dpi/160.0;
 		}
 
+		//pixel_ratio=2.0; // debug
     	println!("pixel ratio: {:?}",pixel_ratio);
 
+    	let hw_size=(
+    		builder.units.units_to_hw(pixel_ratio,builder.size.0),
+    		builder.units.units_to_hw(pixel_ratio,builder.size.1)
+    	);
+
 		let window=video_subsystem
-			.window(&*title, 800, 600)
+			.window(&builder.title,hw_size.0 as u32,hw_size.1 as u32)
 			.opengl()
 			.resizable()
 			.build()
@@ -90,18 +111,22 @@ impl AppWindowSdl {
 
 		let gl_context=window.gl_create_context().unwrap();
 		let _gl_loaded=gl::load_with(|s| video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void);
-        let size = window.size();
+        let window_size = window.size();
+        let hw_size=(
+        	window_size.0 as f32,
+        	window_size.1 as f32
+        );
 
 		Self {
 			sdl,
 			window,
 			_video_subsystem: video_subsystem,
 			_gl_context: gl_context,
-			width: size.0,
-			height: size.1,
+			hw_size,
 			expose_requested: false,
 			pixel_ratio,
-			quit_requested: false
+			quit_requested: false,
+			units: builder.units.clone()
 		}
 	}
 
@@ -120,12 +145,13 @@ impl AppWindowSdl {
 			}
 			Event::Window {win_event: WindowEvent::Resized(w,h), ..}=>{
                 unsafe { gl::Viewport(0, 0, w, h) };
-                self.width=w as u32;
-                self.height=h as u32;
-                handler(self,AppEvent::Resize{
-                	width:w as u32,
-                	height:h as u32
-                });
+                self.hw_size=(w as f32, h as f32);
+                let e=AppEvent::Resize{
+                	width:self.units.hw_to_units(self.pixel_ratio,self.hw_size.0),
+                	height:self.units.hw_to_units(self.pixel_ratio,self.hw_size.1)
+                };
+
+                handler(self,e);
 
                 // For some reason android need this extra render pass.
                 self.do_render(handler);
@@ -137,15 +163,35 @@ impl AppWindowSdl {
 			}
 			Event::MouseButtonDown {x, y, mouse_btn, which, ..} => {
 				let (kind,button)=decode_mouse(which,mouse_btn);
-				handler(self,AppEvent::MouseDown{x,y,kind,button});
+				let e=AppEvent::MouseDown{
+					x: self.units.hw_to_units(self.pixel_ratio,x as f32),
+					y: self.units.hw_to_units(self.pixel_ratio,y as f32),
+					kind,
+					button
+				};
+
+				handler(self,e);
 			}
 			Event::MouseButtonUp {x, y, mouse_btn, which, ..} => {
 				let (kind,button)=decode_mouse(which,mouse_btn);
-				handler(self,AppEvent::MouseUp{x,y,kind,button});
+				let e=AppEvent::MouseUp{
+					x: self.units.hw_to_units(self.pixel_ratio,x as f32),
+					y: self.units.hw_to_units(self.pixel_ratio,y as f32),
+					kind,
+					button
+				};
+
+				handler(self,e);
 			}
 			Event::MouseMotion {x, y, which, ..} => {
 				let (kind,_)=decode_mouse(which,sdl2::mouse::MouseButton::Unknown);
-				handler(self,AppEvent::MouseMove{x,y,kind});
+				let e=AppEvent::MouseMove{
+					x: self.units.hw_to_units(self.pixel_ratio,x as f32),
+					y: self.units.hw_to_units(self.pixel_ratio,y as f32),
+					kind
+				};
+
+				handler(self,e);
 			}
 			_ => {}
 		}
